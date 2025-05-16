@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { initSoundManager, SoundManager, setAriaEnabled } from '../../lib/sound/SoundManager';
 import { useSoundState } from '../../lib/sound/useSoundState';
+import { Howler } from 'howler';
 
 /**
  * AllSpark Audio Test Page
@@ -25,6 +26,17 @@ const AudioTestPage: React.FC = () => {
       setReady(true);
     });
   }, []);
+
+  // Helper to unlock audio context for Safari and other browsers with autoplay restrictions
+  const unlockAudioContext = () => {
+    // Howler.ctx is the AudioContext used by Howler.js
+    if (Howler && Howler.ctx && Howler.ctx.state === 'suspended') {
+      Howler.ctx.resume();
+      console.log('Howler audio context resumed (unlock attempted)');
+    } else {
+      console.log('Howler audio context already running or not available');
+    }
+  };
 
   // Helper to render sound state and controls for a given registry
   const renderSoundControls = (state: Record<string, any>, category: string, subcat?: string, forceKey?: number) => {
@@ -68,7 +80,7 @@ const AudioTestPage: React.FC = () => {
                   <td>{typeof state[key]?.rate === 'number' ? state[key].rate.toFixed(2) : ''}</td>
                   <td>{state[key]?.lastPlayed ? new Date(state[key].lastPlayed).toLocaleTimeString() : ''}</td>
                   <td className="flex flex-wrap gap-1">
-                    <button className="btn btn-xs btn-primary" onClick={() => api?.play?.(key)} disabled={!ready}>▶️</button>
+                    <button className="btn btn-xs btn-primary" onClick={() => { unlockAudioContext(); api?.play?.(key); }} disabled={!ready}>▶️</button>
                     <button className="btn btn-xs btn-secondary" onClick={() => api?.pause?.(key)} disabled={!ready}>⏸️</button>
                     <button className="btn btn-xs btn-error" onClick={() => api?.stop?.(key)} disabled={!ready}>⏹️</button>
                     <button className="btn btn-xs" onClick={() => api?.volume?.(key, 0.5)} disabled={!ready}>🔉0.5</button>
@@ -125,6 +137,7 @@ const AudioTestPage: React.FC = () => {
           <button className="btn btn-sm btn-outline btn-info" onClick={() => SoundManager.pauseAll()} disabled={!ready}>⏸️ Pause All</button>
           <button className="btn btn-sm btn-outline btn-primary" onClick={() => SoundManager.playAll()} disabled={!ready}>▶️ Play All</button>
           <button className="btn btn-sm btn-outline" onClick={() => SoundManager.volumeAll(0.5)} disabled={!ready}>🔉 Set Volume All 0.5</button>
+          <button className="btn btn-sm btn-outline btn-accent" onClick={unlockAudioContext} disabled={!ready}>🔓 Unlock Audio (Safari Fix)</button>
         </div>
         <div className="mb-4 flex items-center gap-2">
           <input type="checkbox" className="toggle toggle-primary" checked={ariaEnabled} onChange={e => { setAria(e.target.checked); setAriaEnabled(e.target.checked); }} />
