@@ -330,6 +330,47 @@ export const SoundManager = {
   registerHowl: registerHowlPublic,
   setAriaEnabled,
   playSprite: (category: SoundCategory, subcategory: string | null, key: string, spriteName: string) => playSprite(category, subcategory, key, spriteName),
+  tts: {
+    /**
+     * Speak the given text using the browser's default TTS voice.
+     * Options: rate (0.1-10), pitch (0-2), volume (0-1). All optional.
+     */
+    speak: (text: string, options?: { rate?: number; pitch?: number; volume?: number }) => {
+      if (!window.speechSynthesis) {
+        console.warn('SpeechSynthesis API not supported in this browser.');
+        return;
+      }
+      SoundManager.tts.stop(); // Stop any current speech
+      const utter = new window.SpeechSynthesisUtterance(text);
+      if (options) {
+        if (typeof options.rate === 'number') utter.rate = options.rate;
+        if (typeof options.pitch === 'number') utter.pitch = options.pitch;
+        if (typeof options.volume === 'number') utter.volume = options.volume;
+      }
+      utter.onstart = () => { ttsState.speaking = true; };
+      utter.onend = utter.onerror = () => { ttsState.speaking = false; ttsState.utterance = null; };
+      ttsState.utterance = utter;
+      window.speechSynthesis.speak(utter);
+    },
+    /** Stop any ongoing speech immediately. */
+    stop: () => {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      ttsState.speaking = false;
+      ttsState.utterance = null;
+    },
+    /** Pause ongoing speech. */
+    pause: () => {
+      if (window.speechSynthesis && window.speechSynthesis.speaking) window.speechSynthesis.pause();
+    },
+    /** Resume paused speech. */
+    resume: () => {
+      if (window.speechSynthesis && window.speechSynthesis.paused) window.speechSynthesis.resume();
+    },
+    /** Returns true if currently speaking. */
+    isSpeaking: () => {
+      return !!(window.speechSynthesis && window.speechSynthesis.speaking);
+    },
+  },
 };
 
 // ---
@@ -411,4 +452,64 @@ export function setAriaEnabled(enabled: boolean) {
  * Howler.js provides per-Howl event listeners (on('play'), on('end'), etc.).
  * SoundManager listens to these events to update its own state and emits global events for app/UI state.
  * Use Howler events for low-level sound logic; use SoundManager's event system for app-wide state and UI.
- */ 
+ */
+
+// --- TTS (Text-to-Speech) API ---
+// Provides a simple wrapper around the browser's SpeechSynthesis API for basic TTS support.
+// No voice selection yet; uses the browser's default voice.
+const ttsState = {
+  utterance: null as SpeechSynthesisUtterance | null,
+  speaking: false,
+};
+
+const tts = {
+  /**
+   * Speak the given text using the browser's default TTS voice.
+   * Options: rate (0.1-10), pitch (0-2), volume (0-1). All optional.
+   */
+  speak: (text: string, options?: { rate?: number; pitch?: number; volume?: number }) => {
+    if (!window.speechSynthesis) {
+      console.warn('SpeechSynthesis API not supported in this browser.');
+      return;
+    }
+    tts.stop(); // Stop any current speech
+    const utter = new window.SpeechSynthesisUtterance(text);
+    if (options) {
+      if (typeof options.rate === 'number') utter.rate = options.rate;
+      if (typeof options.pitch === 'number') utter.pitch = options.pitch;
+      if (typeof options.volume === 'number') utter.volume = options.volume;
+    }
+    utter.onstart = () => { ttsState.speaking = true; };
+    utter.onend = utter.onerror = () => { ttsState.speaking = false; ttsState.utterance = null; };
+    ttsState.utterance = utter;
+    window.speechSynthesis.speak(utter);
+  },
+  /** Stop any ongoing speech immediately. */
+  stop: () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    ttsState.speaking = false;
+    ttsState.utterance = null;
+  },
+  /** Pause ongoing speech. */
+  pause: () => {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) window.speechSynthesis.pause();
+  },
+  /** Resume paused speech. */
+  resume: () => {
+    if (window.speechSynthesis && window.speechSynthesis.paused) window.speechSynthesis.resume();
+  },
+  /** Returns true if currently speaking. */
+  isSpeaking: () => {
+    return !!(window.speechSynthesis && window.speechSynthesis.speaking);
+  },
+};
+// Integrate TTS with SoundManager's global controls
+// Stop/pause TTS when stopAll/pauseAll is called
+// Patch stopAll and pauseAll to also stop/pause TTS
+const origStopAll = SoundManager.stopAll;
+SoundManager.stopAll = () => { origStopAll(); tts.stop(); };
+const origPauseAll = SoundManager.pauseAll;
+SoundManager.pauseAll = () => { origPauseAll(); tts.pause(); };
+
+// Add tts to SoundManager export
+SoundManager.tts = tts; 
